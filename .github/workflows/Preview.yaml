@@ -43,15 +43,30 @@ jobs:
           cd ./dev
           npm install
 
-      - name: Pulumi Preview
+#      - name: Pulumi Preview
+#        id: preview
+#        uses: pulumi/actions@v5
+#        with:
+#          command: preview
+#          refresh: 'false'
+#          stack-name: clients-dev
+#          work-dir: dev/clients
+#          diff: true
+#        env:
+#          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+#          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+
+      - name: Pulumi Preview (Generate Update Plan)
         id: preview
-        uses: pulumi/actions@v5
-        with:
-          command: preview
-          refresh: 'false'
-          stack-name: clients-dev
-          work-dir: dev/clients
-          diff: true
+        run: |
+          pulumi login --non-interactive
+          mkdir -p pulumi-plans
+          pulumi preview \
+            --stack clients-dev \
+            --work-dir dev/clients \
+            --save-plan pulumi-plans/clients-update.json \
+            --non-interactive
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: True
