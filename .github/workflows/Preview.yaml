@@ -18,10 +18,6 @@ jobs:
 
       - name: Setup Pulumi
         uses: pulumi/actions@v5
-        with:
-          command: login
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
       - name: gcloud authentication
         uses: google-github-actions/auth@v2
@@ -41,10 +37,9 @@ jobs:
           cd ./dev
           npm install
 
-      - name: Generate Pulumi Plan
-        id: preview
+      - name: Pulumi Preview (Save Plan)
         run: |
-          mkdir -p pulumi-plans
+          pulumi login --non-interactive
           pulumi preview \
             --stack clients-dev \
             --work-dir dev/clients \
@@ -89,10 +84,6 @@ jobs:
 
       - name: Setup Pulumi
         uses: pulumi/actions@v5
-        with:
-          command: login
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
       - name: gcloud authentication
         uses: google-github-actions/auth@v2
