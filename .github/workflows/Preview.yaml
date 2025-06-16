@@ -66,7 +66,7 @@ jobs:
           pulumi preview \
             --stack perzefi/clients-dev \
             --save-plan ../../pulumi-plans/clients-update.json \
-            --non-interactive > ../../pulumi-plans/preview-output.txt 2>&1
+            --non-interactive > ../../preview-output.txt 2>&1
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: true
@@ -107,8 +107,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: clients-preview-output
-          path: pulumi-plans/
+          path: |
+            pulumi-plans/
+            preview-output.txt
           retention-days: 30
+
   # Clients deploy runs only if there are changes on pulumi preview in clients-refresh-preview job
   clients-deploy:
     runs-on: ubuntu-latest
