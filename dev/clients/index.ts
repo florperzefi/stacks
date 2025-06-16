@@ -6,6 +6,11 @@ import {clusterName, environment, region} from "./infrastructure/config";
 import { Provider } from "@pulumi/kubernetes";
 
 
+// Create a GCP resource (Storage Bucket)
+const bucket = new gcp.storage.Bucket("client-bucket", {
+    location: "US"
+});
+
 // // Create Network
 // const network = new Network("cloud", {
 //     clusterName,
