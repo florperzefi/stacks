@@ -66,7 +66,7 @@ jobs:
           pulumi preview \
             --stack perzefi/clients-dev \
             --save-plan ../../pulumi-plans/clients-update.json \
-            --non-interactive
+            --non-interactive > ../../preview-output.txt 2>&1
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: true
@@ -74,7 +74,6 @@ jobs:
       - name: Check Pulumi Changes
         id: check_changes
         run: |
-          echo "${{ steps.preview.outputs.output }}" > preview-output.txt
 
           CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
           
