@@ -3,15 +3,15 @@ import { deployPulumiOperator } from "./infrastructure/k8s/pulumiOperator";
 import { GkeCluster } from "./infrastructure/gke";
 import { generateKubeconfig } from "./infrastructure/gke/kubeconfig";
 import {clusterName, environment, region} from "./infrastructure/config";
-import { Provider } from "@pulumi/kubernetes";
+import * as gcp from "@pulumi/gcp";
 
 
 // Create a GCP resource (Storage Bucket)
-const bucket = new gcp.storage.Bucket("client-bucket", {
+const bucket = new gcp.storage.Bucket("test-bucket", {
     location: "US"
 });
 
-// // Create Network
+// // // Create Network
 // const network = new Network("cloud", {
 //     clusterName,
 //     region,
