@@ -151,17 +151,17 @@ jobs:
       - name: Download Preview State
         uses: actions/download-artifact@v4
         with:
-          name: pulumi-preview-state
-          path: preview-outputs/
+          name: clients-preview-output
+          path: .
+
 
       - name: Pulumi Up
         id: deploy
-        uses: pulumi/actions@v5
-        with:
-          command: up
-          stack-name: clients-dev
-          diff: true
-          work-dir: dev/clients
+        run: |
+          pulumi login --non-interactive
+          cd dev/clients
+          pulumi up --plan ../../clients-update.json --yes
+
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: True
