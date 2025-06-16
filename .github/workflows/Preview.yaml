@@ -160,6 +160,7 @@ jobs:
         run: |
           pulumi login --non-interactive
           cd dev/clients
+          pulumi stack select perzefi/clients-dev
           pulumi up --plan ../../clients-update.json --yes
 
         env:
