@@ -96,11 +96,11 @@ jobs:
       
 
       # Save and Exports pulumi Preview output for audit, helps to double-check changes before "pulumi up".
-      - name: Save Preview Output
-        if: steps.check_changes.outputs.has_changes == 'true'
-        run: |
-          mkdir -p preview-outputs
-          echo "${{ steps.preview.outputs.output }}" >> pulumi-plans/preview-output.txt
+#      - name: Save Preview Output
+#        if: steps.check_changes.outputs.has_changes == 'true'
+#        run: |
+#          mkdir -p preview-outputs
+#          echo "${{ steps.preview.outputs.output }}" >> pulumi-plans/preview-output.txt
 
       - name: Upload Preview Artifact
 #        if: steps.check_changes.outputs.has_changes == 'true'
