@@ -1,10 +1,12 @@
-name: Order Stack
+name: Order Stack Fixed
 on:
-    push:
-      branches:
-        - main
-      paths:
-        - 'dev/**'
+  #  push:
+  #    branches:
+  #      - main
+  #    paths:
+  #      - 'dev/**'
+  #      - 'dev/platform/**'
+  #      - 'dev/foundation/**'
   workflow_dispatch:
 jobs:
 
