@@ -1,9 +1,9 @@
-name: Prewview-Json
+name: Pulumi Preview and Deploy
 on:
   workflow_dispatch:
 
 jobs:
-  clients-refresh-preview:
+  preview:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -37,39 +37,48 @@ jobs:
           cd ./dev
           npm install
 
-      - name: Pulumi Preview (Save Plan)
+      - name: Create Preview JSON
+        id: preview_json
         run: |
-          pulumi login --non-interactive
-          pulumi preview \
-            --stack clients-dev \
-            --work-dir dev/clients \
-            --save-plan pulumi-plans/clients-update.json \
-            --non-interactive
+          mkdir -p .pulumi
+          pulumi preview --json --stack clients-dev --cwd dev/clients > .pulumi/preview.json
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
-      - name: Check Pulumi Changes
+      - name: Check for Changes
         id: check_changes
         run: |
-          PLAN_CONTENT=$(cat pulumi-plans/clients-update.json)
-          CHANGES=$(echo "$PLAN_CONTENT" | grep -E "create|delete|update|replace" || true)
-          if [ -n "$CHANGES" ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          CHANGES=$(cat .pulumi/preview.json | jq -r '.changeSummary | select(.create != 0 or .update != 0 or .delete != 0 or .replace != 0)')
+          if [ ! -z "$CHANGES" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in preview:"
+            echo "$CHANGES" | jq '.'
           else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in preview"
           fi
 
-      - name: Upload Plan Artifact
+      - name: Save Preview State
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          # Save preview metadata
+          echo "$(date -u)" > .pulumi/preview-metadata.txt
+          echo "Commit: ${{ github.sha }}" >> .pulumi/preview-metadata.txt
+          echo "Workflow: ${{ github.workflow }}" >> .pulumi/preview-metadata.txt
+
+      - name: Upload Preview Artifact
         if: steps.check_changes.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: clients-update-plan
-          path: pulumi-plans/
+          name: pulumi-preview-state
+          path: .pulumi/
+          retention-days: 1
 
-  clients-deploy:
+  deploy:
+    needs: preview
+    if: needs.preview.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
-    needs: clients-refresh-preview
-    if: needs.clients-refresh-preview.outputs.has_changes == 'true'
     permissions:
       contents: read
       id-token: write
@@ -93,6 +102,8 @@ jobs:
 
       - name: Install gcloud
         uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
 
       - name: NPM install
         env:
@@ -101,36 +112,65 @@ jobs:
           cd ./dev
           npm install
 
-      - name: Download Plan Artifact
+      - name: Download Preview State
         uses: actions/download-artifact@v4
         with:
-          name: clients-update-plan
-          path: pulumi-plans/
+          name: pulumi-preview-state
+          path: .pulumi
 
-      - name: Apply Pulumi Plan
-        id: deploy
+      - name: Verify State Match
+        id: verify_state
         run: |
-          pulumi up \
-            --stack clients-dev \
-            --work-dir dev/clients \
-            --plan pulumi-plans/clients-update.json \
-            --non-interactive \
-            --yes
+          # Get current state hash
+          CURRENT_PREVIEW=$(pulumi preview --json --stack clients-dev --cwd dev/clients)
+          CURRENT_HASH=$(echo "$CURRENT_PREVIEW" | jq -r '.checkpoint_hash')
+          
+          # Get saved preview hash
+          SAVED_HASH=$(cat .pulumi/preview.json | jq -r '.checkpoint_hash')
+          
+          if [ "$CURRENT_HASH" != "$SAVED_HASH" ]; then
+            echo "::error::Stack state has changed since preview. Aborting deployment for safety."
+            exit 1
+          fi
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
-      - name: Save Deployment Output
+      - name: Pulumi Up
+        id: deploy
+        if: success()
+        uses: pulumi/actions@v5
+        with:
+          command: up
+          stack-name: clients-dev
+          work-dir: dev/clients
+          diff: true
+          expect-no-changes: false
+          refresh: true
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+      - name: Save Deployment Results
+        if: success()
         run: |
           mkdir -p deployment-outputs
-          echo "Deployment completed at: $(date)" > deployment-outputs/clients-deploy.txt
-          echo "Commit: ${{ github.sha }}" >> deployment-outputs/clients-deploy.txt
-          echo "Deployed by: ${{ github.actor }}" >> deployment-outputs/clients-deploy.txt
-          echo "${{ steps.deploy.outputs.output }}" >> deployment-outputs/clients-deploy.txt
+          {
+            echo "Deployment completed at: $(date)"
+            echo "Commit: ${{ github.sha }}"
+            echo "Workflow: ${{ github.workflow }}"
+            echo "Actor: ${{ github.actor }}"
+            echo "---"
+            echo "Preview timestamp: $(cat .pulumi/preview-metadata.txt)"
+            echo "---"
+            echo "Deployment Output:"
+            echo "${{ steps.deploy.outputs.output }}"
+          } > deployment-outputs/deployment-results.txt
 
-
-      - name: Upload Deployment Artifact
+      - name: Upload Deployment Results
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: clients-deployment-output
+          name: deployment-results
           path: deployment-outputs/
           retention-days: 90
