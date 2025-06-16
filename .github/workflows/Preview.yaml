@@ -59,17 +59,18 @@ jobs:
       - name: Check Pulumi Changes
         id: check_changes
         run: |
-          echo "${{ steps.preview.outputs.output }}" > client-output.json
-          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.json || true)
-
+          echo "${{ steps.preview.outputs.output }}" > preview-output.txt
+          echo "${{ steps.preview.outputs.output }}" > clients-output.json
+          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
+          
           if [ -n "$CHANGES" ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-
+          
             # Use multiline syntax for changes_summary to handle newlines properly
             echo "changes_summary<<EOF" >> "$GITHUB_OUTPUT"
             echo "$CHANGES" >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
-
+          
             # For the notice, replace newlines with spaces to avoid formatting issues
             CHANGES_SINGLE_LINE=$(echo "$CHANGES" | tr '\n' ' ')
             echo "::notice title=Pulumi Change Detected in CLIENTS Stack::$CHANGES_SINGLE_LINE"
@@ -134,7 +135,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pulumi-preview-state
-          path: .pulumi
+          path: preview-outputs/
 
       - name: Pulumi Up
         id: deploy
