@@ -1,0 +1,145 @@
+name: Audit Stack Approval
+on:
+  workflow_dispatch:
+
+jobs:
+  clients-refresh-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pulumi
+        uses: pulumi/actions@v5
+        with:
+          command: login
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: gcloud authentication
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: NPM install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Generate Pulumi Plan
+        id: preview
+        run: |
+          mkdir -p pulumi-plans
+          pulumi preview \
+            --stack clients-dev \
+            --work-dir dev/clients \
+            --save-plan pulumi-plans/clients-update.json \
+            --non-interactive
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Check Pulumi Changes
+        id: check_changes
+        run: |
+          PLAN_CONTENT=$(cat pulumi-plans/clients-update.json)
+          CHANGES=$(echo "$PLAN_CONTENT" | grep -E "create|delete|update|replace" || true)
+          if [ -n "$CHANGES" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Plan Artifact
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clients-update-plan
+          path: pulumi-plans/
+
+  clients-deploy:
+    runs-on: ubuntu-latest
+    needs: clients-refresh-preview
+    if: needs.clients-refresh-preview.outputs.has_changes == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    environment:
+      name: dev
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pulumi
+        uses: pulumi/actions@v5
+        with:
+          command: login
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: gcloud authentication
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: NPM install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: clients-update-plan
+          path: pulumi-plans/
+
+      - name: Apply Pulumi Plan
+        id: deploy
+        run: |
+          pulumi up \
+            --stack clients-dev \
+            --work-dir dev/clients \
+            --plan pulumi-plans/clients-update.json \
+            --non-interactive \
+            --yes
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Save Deployment Output
+        run: |
+          mkdir -p deployment-outputs
+          echo "Deployment completed at: $(date)" > deployment-outputs/clients-deploy.txt
+          echo "Commit: ${{ github.sha }}" >> deployment-outputs/clients-deploy.txt
+          echo "Deployed by: ${{ github.actor }}" >> deployment-outputs/clients-deploy.txt
+          echo "${{ steps.deploy.outputs.output }}" >> deployment-outputs/clients-deploy.txt
+
+
+      - name: Upload Deployment Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clients-deployment-output
+          path: deployment-outputs/
+          retention-days: 90
