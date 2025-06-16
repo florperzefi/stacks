@@ -85,6 +85,7 @@ jobs:
       - name: Save Preview Output
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
+          mkdir -p preview-outputs
           echo "${{ steps.preview.outputs.output }}" >> preview-outputs/clients-output.json
 
       - name: Upload Preview Artifact
