@@ -1,0 +1,13 @@
+{
+    "name": "gcpp",
+    "main": "index.ts",
+    "devDependencies": {
+        "@types/node": "^18",
+        "typescript": "^5.0.0"
+    },
+    "dependencies": {
+        "@pulumi/gcp": "8.13",
+        "@pulumi/kubernetes": "^4.22.2",
+        "@pulumi/pulumi": "^3.113.0"
+    }
+}
