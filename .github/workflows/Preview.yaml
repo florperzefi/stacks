@@ -57,18 +57,19 @@ jobs:
 #          USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
 
-      - name: Pulumi Preview (Generate Update Plan)
+      - name: Pulumi Preview (Save Plan)
         id: preview
         run: |
           pulumi login --non-interactive
           mkdir -p pulumi-plans
+          cd dev/clients
           pulumi preview \
-          --stack clients-dev \
-          --save-plan ../../pulumi-plans/clients-update.json \
-          --non-interactive
+            --stack perzefi/clients-dev \
+            --save-plan ../../pulumi-plans/clients-update.json \
+            --non-interactive
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+          USE_GKE_GCLOUD_AUTH_PLUGIN: true
 
       - name: Check Pulumi Changes
         id: check_changes
