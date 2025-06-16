@@ -75,7 +75,7 @@ jobs:
         id: check_changes
         run: |
           echo "${{ steps.preview.outputs.output }}" > preview-output.txt
-          echo "${{ steps.preview.outputs.output }}" > clients-output.json
+
           CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
           
           if [ -n "$CHANGES" ]; then
@@ -101,14 +101,14 @@ jobs:
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           mkdir -p preview-outputs
-          echo "${{ steps.preview.outputs.output }}" >> preview-outputs/clients-output.json
+          echo "${{ steps.preview.outputs.output }}" >> pulumi-plans/preview-output.txt
 
       - name: Upload Preview Artifact
-        if: steps.check_changes.outputs.has_changes == 'true'
+#        if: steps.check_changes.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: clients-preview-output
-          path: preview-outputs/
+          path: pulumi-plans/
           retention-days: 30
   # Clients deploy runs only if there are changes on pulumi preview in clients-refresh-preview job
   clients-deploy:
