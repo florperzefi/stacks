@@ -413,7 +413,7 @@ jobs:
         id: preview
         run: |
           pulumi login --non-interactive
-          cd dev/clients
+          cd dev/foundation
           pulumi preview \
             --stack perzefi/platform-dev \
             --save-plan ../../platform-update.json \
