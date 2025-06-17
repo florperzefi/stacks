@@ -173,8 +173,8 @@ jobs:
         id: deploy
         run: |
           pulumi login --non-interactive
-          cd dev/clients
-          pulumi stack select perzefi/clients-dev
+          cd dev/foundation
+          pulumi stack select perzefi/foundation-dev
           pulumi up --plan ../../foundation-update.json --yes \
           --non-interactive > foundation-deploy.txt 2>&1
         env:
@@ -525,8 +525,8 @@ jobs:
         id: deploy
         run: |
           pulumi login --non-interactive
-          cd dev/clients
-          pulumi stack select perzefi/clients-dev
+          cd dev/platfom
+          pulumi stack select perzefi/platform-dev
           pulumi up --plan ../../platform-update.json --yes \
           --non-interactive > clients-deploy.txt 2>&1
         env:
