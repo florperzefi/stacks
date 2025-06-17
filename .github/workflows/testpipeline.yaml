@@ -445,7 +445,7 @@ jobs:
           cd dev/platform
           pulumi stack select perzefi/platform-dev
           pulumi up --plan ../../platform-update.json --yes \
-          --non-interactive > clients-deploy.txt 2>&1
+          --non-interactive > platform-deploy.txt 2>&1
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: True
