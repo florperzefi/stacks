@@ -9,6 +9,7 @@ on:
 jobs:
 
   foundation-refresh-preview:
+    environment: dev
     runs-on: ubuntu-latest
     permissions:
       contents: read
