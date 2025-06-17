@@ -9,7 +9,7 @@ on:
 jobs:
 
   foundation-refresh-preview:
-    name: [FOUNDATION]-Refresh-Preview
+    name: FOUNDATION-Refresh-Preview
     runs-on: ubuntu-latest
     permissions:
       contents: read
