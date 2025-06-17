@@ -168,6 +168,11 @@ jobs:
 #          stack-name: foundation-dev
 #          work-dir: dev/foundation
 #          diff: true
+      - name: Download Preview State
+        uses: actions/download-artifact@v4
+        with:
+          name: foundation-preview-output
+          path: .
 
       - name: Pulumi Up
         id: deploy
@@ -519,7 +524,11 @@ jobs:
 #          stack-name: platform-dev
 #          work-dir: dev/platform
 #          diff: true
-
+      - name: Download Preview State
+        uses: actions/download-artifact@v4
+        with:
+          name: platform-preview-output
+          path: .
 
       - name: Pulumi Up
         id: deploy
