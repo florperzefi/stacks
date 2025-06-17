@@ -532,7 +532,7 @@ jobs:
         id: deploy
         run: |
           pulumi login --non-interactive
-          cd dev/platfom
+          cd dev/platform
           pulumi stack select perzefi/platform-dev
           pulumi up --plan ../../platform-update.json --yes \
           --non-interactive > clients-deploy.txt 2>&1
