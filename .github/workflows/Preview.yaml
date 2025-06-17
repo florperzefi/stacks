@@ -74,7 +74,6 @@ jobs:
       - name: Check Pulumi Changes
         id: check_changes
         run: |
-          echo "${{ steps.preview.outputs.output }}" > preview-output.txt
           CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
 
           if [ -n "$CHANGES" ]; then
@@ -426,7 +425,6 @@ jobs:
       - name: Check Pulumi Changes
         id: check_changes
         run: |
-          echo "${{ steps.preview.outputs.output }}" > preview-output.txt
           CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
 
           if [ -n "$CHANGES" ]; then
