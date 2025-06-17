@@ -37,10 +37,12 @@ jobs:
       - name: NPM install dependencies
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
         run: |
           cd ./dev
           npm install
-        USE_GKE_GCLOUD_AUTH_PLUGIN: True
+        
 
       - name: Pulumi Preview (Save Plan)
         id: preview
