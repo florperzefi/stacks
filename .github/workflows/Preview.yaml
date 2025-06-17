@@ -67,6 +67,7 @@ jobs:
             --save-plan ../../clients-update.json \
             --non-interactive 2>&1 | tee ../../preview-output.txt
 #            --non-interactive > ../../preview-output.txt 2>&1
+#        2>&1 | tee -> captures both stdout and stderr, shows in terminal and saves in file
 
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
@@ -169,22 +170,22 @@ jobs:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
-#
-#
-#      # Security and Audit: Save deployment output
-#      - name: Save Deployment Output
-#        run: |
-#          mkdir -p deployment-outputs
-#          echo "Deployment completed at: $(date)" > deployment-outputs/clients-deploy.txt
-#          echo "Commit: ${{ github.sha }}" >> deployment-outputs/clients-deploy.txt
-#          echo "Deployed by: ${{ github.actor }}" >> deployment-outputs/clients-deploy.txt
-#          echo "---" >> deployment-outputs/clients-deploy.txt
-#          echo "${{ steps.deploy.outputs.output }}" >> deployment-outputs/clients-deploy.txt
-#
-#
-#      - name: Upload Deployment Artifact
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: clients-deployment-output
-#          path: deployment-outputs/
-#          retention-days: 90
+
+
+      # Security and Audit: Save deployment output
+      - name: Save Deployment Output
+        run: |
+          mkdir -p deployment-outputs
+          echo "Deployment completed at: $(date)" > deployment-outputs/clients-deploy.txt
+          echo "Commit: ${{ github.sha }}" >> deployment-outputs/clients-deploy.txt
+          echo "Deployed by: ${{ github.actor }}" >> deployment-outputs/clients-deploy.txt
+          echo "---" >> deployment-outputs/clients-deploy.txt
+          echo "${{ steps.deploy.outputs.output }}" >> deployment-outputs/clients-deploy.txt
+
+
+      - name: Upload Deployment Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clients-deployment-output
+          path: deployment-outputs/
+          retention-days: 90
