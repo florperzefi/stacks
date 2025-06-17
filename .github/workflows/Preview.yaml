@@ -66,7 +66,7 @@ jobs:
             --stack perzefi/clients-dev \
             --save-plan ../../clients-update.json \
             --non-interactive > ../../preview-output.txt 2>&1 \
-          cat preview-output.txt
+          cat ../../preview-output.txt
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: true
