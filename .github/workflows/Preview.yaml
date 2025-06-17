@@ -165,7 +165,7 @@ jobs:
           cd dev/clients
           pulumi stack select perzefi/clients-dev
           pulumi up --plan ../../clients-update.json --yes \
-          --non-interactive 2>&1 | tee ../../client-deploy.txt
+          --non-interactive > ../../clients-deploy.txt 2>&1
 
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
@@ -184,12 +184,11 @@ jobs:
 #          echo "${{ steps.deploy.outputs.output }}" >> deployment-outputs/clients-deploy.txt
 
       - name: Upload Preview Artifact
-        if: steps.check_changes.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: clients-preview-output
           path: |
-            client-deploy.txt
+            clients-deploy.txt
           retention-days: 30
 #
 #      - name: Upload Deployment Artifact
