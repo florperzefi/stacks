@@ -1,150 +1,450 @@
-name: Directory CI/CD Pipeline / No Pulumi
-
+name: Polished Pipeline - Dev
 on:
-#  push:
-#    branches:
-#      - main
-#    paths:
-#      - 'dev/clients/**'
-#      - 'dev/platform/**'
-#      - 'dev/foundation/**'
+  #  push:
+  #    branches:
+  #      - main
+  #    paths:
+  #      - 'dev/**'
   workflow_dispatch:
-
-
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      only_foundation: ${{ steps.set.outputs.only_foundation }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Detect exclusive foundation changes
-        id: set
-        run: |
-          git fetch origin main
-          DIFF=$(git diff --name-only origin/main...HEAD)
-
-          echo "Changed files:"
-          echo "$DIFF"
-
-          changed_clients=false
-          changed_platform=false
-          changed_foundation=false
-
-          if echo "$DIFF" | grep -q '^clients/'; then
-            changed_clients=true
-          fi
-
-          if echo "$DIFF" | grep -q '^platform/'; then
-            changed_platform=true
-          fi
-
-          if echo "$DIFF" | grep -q '^foundation/'; then
-            changed_foundation=true
-          fi
-
-          if [[ "$changed_foundation" == "true" && "$changed_clients" == "false" && "$changed_platform" == "false" ]]; then
-            echo "Only foundation files changed"
-            echo "only_foundation=true" >> $GITHUB_OUTPUT
-          else
-            echo "Other directories also changed or no foundation change"
-            echo "only_foundation=false" >> $GITHUB_OUTPUT
-          fi
-  
-
-  clients-refresh-preview:
-    runs-on: ubuntu-latest
-    outputs:
-      preview_status: ${{ steps.preview-step.outputs.status }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build project
-        id: preview-step
-        run: |
-          echo "Client refresh"
-          echo "status=success" >> $GITHUB_OUTPUT
-  
-
-  clients-deploy:
-    runs-on: ubuntu-latest
-    needs: clients-refresh-preview
-    environment:
-      name: dev
-      url: ${{ steps.deploy.outputs.url }}
-    # Check if previews job is successful, AND  has a match changes
-    if: |
-      needs.clients-refresh-preview.result == 'success' && 
-      needs.clients-refresh-preview.outputs.preview_status == 'success'
-      
-
-    steps:
-      - name: Run tests
-        run: echo "✅ Running unit tests..."
-
-
-
-
-#FOUNDATION
   foundation-refresh-preview:
+    name: [FOUNDATION]-Refresh-Preview
     runs-on: ubuntu-latest
-    needs: [clients-refresh-preview, clients-deploy]
-    if: ${{ (success() || needs.clients-deploy.result == 'skipped') && !contains(needs.*.result, 'failure') }}
-
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     outputs:
-      preview_status: ${{ steps.preview-step.outputs.status }}
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+
     steps:
-      - name: Lint code
-        id: preview-step
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: NPM install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🧹 Linting source files..."
-          echo "status=success" >> $GITHUB_OUTPUT
+          cd ./dev
+          npm install
+        USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+      - name: Pulumi Preview (Save Plan)
+        id: preview
+        run: |
+          pulumi login --non-interactive
+          cd dev/foundation
+          pulumi preview \
+            --stack perzefi/foundation-dev \
+            --save-plan ../../foundation-update.json \
+            --non-interactive 2>&1 | tee ../../preview-output.txt
+        #  2>&1 | tee -> captures both stdout and stderr, shows in terminal and saves in file
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+
+      - name: Check for Pulumi Changes
+        id: check_changes
+        run: |
+          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
+
+          if [ -n "$CHANGES" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+            # Use multiline syntax for changes_summary to handle newlines properly
+            echo "changes_summary<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$CHANGES" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+
+            # For the notice, replace newlines with spaces to avoid formatting issues
+            CHANGES_SINGLE_LINE=$(echo "$CHANGES" | tr '\n' ' ')
+            echo "::notice title=Pulumi Change Detected in FOUNDATION Stack::$CHANGES_SINGLE_LINE"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "changes_summary=No changes detected" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No Pulumi Changes in FOUNDATION Stack::No changes detected"
+          fi
+
+      - name: Upload Pulumi Preview output to Artifact
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-preview-output
+          path: |
+            foundation-update.json
+            preview-output.txt
+          retention-days: 30
+
 
 
   foundation-deploy:
+    name: [FOUNDATION]-Deploy-Changes
     runs-on: ubuntu-latest
-    needs: [clients-refresh-preview, clients-deploy, foundation-refresh-preview]
+    needs: foundation-refresh-preview
+    if: needs.foundation-refresh-preview.outputs.has_changes == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     environment:
       name: dev
       url: ${{ steps.deploy.outputs.url }}
-    if: |
-      !contains(needs.*.result, 'failure') &&
-      needs.foundation-refresh-preview.outputs.preview_status == 'success'
+
     steps:
-      - name: Run security scan
-        run: echo "🔐 Running security scan..."
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: NPM install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Download FOUNDATION Preview State
+        uses: actions/download-artifact@v4
+        with:
+          name: foundation-preview-output
+          path: .
+
+      - name: Pulumi Up on Foundation (--plan)
+        id: deploy
+        run: |
+          pulumi login --non-interactive
+          cd dev/foundation
+          pulumi stack select perzefi/foundation-dev
+          pulumi up --plan ../../foundation-update.json --yes \
+          --non-interactive > foundation-deploy.txt 2>&1
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+      - name: Upload Deploy Output to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-deploy-output
+          path: dev/foundation/foundation-deploy.txt
+          retention-days: 30
 
 
+  clients-refresh-preview:
+    name: [CLIENTS]-Refresh-Preview
+    runs-on: ubuntu-latest
+    needs: [ foundation-refresh-preview, foundation-deploy ]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure')
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
 
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: NPM install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Pulumi Preview (Save Plan)
+        id: preview
+        run: |
+          pulumi login --non-interactive
+          cd dev/clients
+          pulumi preview \
+            --stack perzefi/clients-dev \
+            --save-plan ../../clients-update.json \
+            --non-interactive 2>&1 | tee ../../preview-output.txt
+        #        2>&1 | tee -> captures both stdout and stderr, shows in terminal and saves in file
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: true
+
+      - name: Check Pulumi Changes
+        id: check_changes
+        run: |
+
+          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
+          
+          if [ -n "$CHANGES" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          
+            # Use multiline syntax for changes_summary to handle newlines properly
+            echo "changes_summary<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$CHANGES" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          
+            # For the notice, replace newlines with spaces to avoid formatting issues
+            CHANGES_SINGLE_LINE=$(echo "$CHANGES" | tr '\n' ' ')
+            echo "::notice title=Pulumi Change Detected in CLIENTS Stack::$CHANGES_SINGLE_LINE"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "changes_summary=No changes detected" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No Pulumi Changes in CLIENTS Stack::No changes detected"
+          fi
+
+      - name: Upload Pulumi Preview output to Artifact
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clients-preview-output
+          path: |
+            clients-update.json
+            preview-output.txt
+          retention-days: 30
+
+
+  clients-deploy:
+    name: [CLIENT]-Deploy-Changes
+    runs-on: ubuntu-latest
+    needs: [foundation-refresh-preview, foundation-deploy, clients-refresh-preview ]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && needs.clients-refresh-preview.outputs.has_changes == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    environment:
+      name: dev
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: NPM install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Download CLIENT Preview State
+        uses: actions/download-artifact@v4
+        with:
+          name: clients-preview-output
+          path: .
+
+      - name: Pulumi Up on Client (--plan)
+        id: deploy
+        run: |
+          pulumi login --non-interactive
+          cd dev/clients
+          pulumi stack select perzefi/clients-dev
+          pulumi up --plan ../../clients-update.json --yes \
+          --non-interactive > clients-deploy.txt 2>&1
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+      - name: Upload Deploying Output to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clients-deploy-output
+          path: dev/clients/clients-deploy.txt
+          retention-days: 30
 
 
   platform-refresh-preview:
+    name: [PLATFORM]-Refresh-Preview
     runs-on: ubuntu-latest
-    needs: [clients-refresh-preview, clients-deploy, foundation-refresh-preview, foundation-deploy]
-    if: ${{ (success() || needs.foundation-deploy.result == 'skipped') && !contains(needs.*.result, 'failure') }}
+    needs: [foundation-refresh-preview, foundation-deploy, clients-refresh-preview, clients-deploy, ]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure')
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     outputs:
-      preview_status: ${{ steps.preview-step.outputs.status }}
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+
     steps:
-      - name: Deploy to staging
-        id: preview-step
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: NPM install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🚀 Deploying to staging environment..."
-          echo "status=success" >> $GITHUB_OUTPUT
-  
+          cd ./dev
+          npm install
+
+      - name: Pulumi Preview (Save Plan)
+        id: preview
+        run: |
+          pulumi login --non-interactive
+          cd dev/platform
+          pulumi preview \
+            --stack perzefi/platform-dev \
+            --save-plan ../../platform-update.json \
+            --non-interactive 2>&1 | tee ../../preview-output.txt
+        # 2>&1 | tee -> captures both stdout and stderr which shows in terminal and saves in file
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+
+      - name: Check Pulumi Changes
+        id: check_changes
+        run: |
+          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
+
+          if [ -n "$CHANGES" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+            # Use multiline syntax for changes_summary to handle newlines properly
+            echo "changes_summary<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$CHANGES" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+
+            # For the notice, replace newlines with spaces to avoid formatting issues
+            CHANGES_SINGLE_LINE=$(echo "$CHANGES" | tr '\n' ' ')
+            echo "::notice title=Pulumi Change Detected in PLATFORM Stack::$CHANGES_SINGLE_LINE"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "changes_summary=No changes detected" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No Pulumi Changes in PLATFORM Stack::No changes detected"
+          fi
+
+      - name: Upload Pulumi Preview output to Artifact
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-preview-output
+          path: |
+            platform-update.json
+            preview-output.txt
+          retention-days: 30
+
+
+# PLATFORM Deploy job executes only if there is changes in platform-refresh-preview, and no previews failed job exists.
+# Since this job is deploying with "pulumi up" a manual review and approval is required, which will be tiggered automatically, using envoriment (dev) protecing rules.
 
   platform-deploy:
+    name: [PLATFORM]-Deploy-Changes
     runs-on: ubuntu-latest
-    needs: [ clients-refresh-preview, clients-deploy, foundation-refresh-preview, foundation-deploy, platform-refresh-preview ]
+    needs: [foundation-refresh-preview, foundation-deploy, clients-refresh-preview, clients-deploy, platform-refresh-preview]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && needs.platform-refresh-preview.outputs.has_changes == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     environment:
       name: dev
       url: ${{ steps.deploy.outputs.url }}
-    if: |
-      !contains(needs.*.result, 'failure') &&
-      needs.platform-refresh-preview.outputs.preview_status == 'success'
+
     steps:
-      - name: Send Slack notification
-        run: echo "📣 Notifying team of successful deployment..."
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: NPM install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Download PLATFORM Preview State
+        uses: actions/download-artifact@v4
+        with:
+          name: platform-preview-output
+          path: .
+
+      - name: Pulumi Up
+        id: deploy
+        run: |
+          pulumi login --non-interactive
+          cd dev/platform
+          pulumi stack select perzefi/platform-dev
+          pulumi up --plan ../../platform-update.json --yes \
+          --non-interactive > clients-deploy.txt 2>&1
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+      - name: Upload Deploy Output to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-deploy-output
+          path: dev/platform/platform-deploy.txt
+          retention-days: 30
