@@ -186,7 +186,7 @@ jobs:
       - name: Upload Preview Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: clients-preview-output
+          name: clients-deploy-output
           path: dev/clients/clients-deploy.txt
           retention-days: 30
 
