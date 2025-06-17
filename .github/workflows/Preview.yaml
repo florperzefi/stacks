@@ -65,8 +65,9 @@ jobs:
           pulumi preview \
             --stack perzefi/clients-dev \
             --save-plan ../../clients-update.json \
-            --non-interactive > ../../preview-output.txt 2>&1 \
-          cat ../../preview-output.txt
+            --non-interactive 2>&1 | tee ../../preview-output.txt
+#            --non-interactive > ../../preview-output.txt 2>&1
+
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           USE_GKE_GCLOUD_AUTH_PLUGIN: true
@@ -93,7 +94,7 @@ jobs:
             echo "changes_summary=No changes detected" >> "$GITHUB_OUTPUT"
             echo "::notice title=No Pulumi Changes in CLIENTS Stack::No changes detected"
           fi
-      
+
 #
 #      # Save and Exports pulumi Preview output for audit, helps to double-check changes before "pulumi up".
 #      - name: Save Preview Output
