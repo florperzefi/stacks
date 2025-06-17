@@ -7,7 +7,7 @@ import * as gcp from "@pulumi/gcp";
 
 
 // Create a GCP resource (Storage Bucket)
-const bucket = new gcp.storage.Bucket("client-bucket", {
+const bucket = new gcp.storage.Bucket("testclient-bucket", {
     location: "US"
 });
 
