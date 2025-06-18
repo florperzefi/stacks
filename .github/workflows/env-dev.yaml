@@ -21,8 +21,8 @@ jobs:
       - name: Set output values from environment Dev
         id: set-vars
         run: |
-          echo "sa=${{ vars.GCP_SERVICE_ACCOUNT_DEV }}" >> "$GITHUB_OUTPUT"
-          echo "provider=${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}" >> "$GITHUB_OUTPUT"
+          echo "sa=${GCP_SERVICE_ACCOUNT_DEV}" >> "$GITHUB_OUTPUT"
+          echo "provider=${GCP_WORKLOAD_IDENTITY_PROVIDER_DEV}" >> "$GITHUB_OUTPUT"
 
       - name: Install Pulumi
         uses: pulumi/actions@v5
