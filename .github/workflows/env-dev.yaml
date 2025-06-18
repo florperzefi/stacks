@@ -72,15 +72,13 @@ jobs:
     environment:
       name: approval
       url: ${{ steps.deploy.outputs.url }}
+    env:
+      GCP_SERVICE_ACCOUNT: ${{ needs.foundation-refresh-preview.outputs.service_account }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ needs.foundation-refresh-preview.outputs.provider }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Use exported environment values
-        run: |
-          echo "✅ Received Service Account: ${{ needs.foundation-refresh-preview.outputs.service_account }}"
-          echo "✅ Received Workload Identity Provider: ${{ needs.foundation-refresh-preview.outputs.provider }}"
 
       - name: Install Pulumi
         uses: pulumi/actions@v5
@@ -88,8 +86,8 @@ jobs:
       - name: Authenticate with gcloud using received values
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ needs.foundation-refresh-preview.outputs.provider }}
-          service_account: ${{ needs.foundation-refresh-preview.outputs.service_account }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
 
       - name: Install gcloud
         uses: google-github-actions/setup-gcloud@v1
