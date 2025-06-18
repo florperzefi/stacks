@@ -1,0 +1,41 @@
+name: Preview Json Output
+on:
+  #  push:
+  #    branches:
+  #      - main
+  #    paths:
+  #      - 'dev/**'
+  workflow_dispatch:
+jobs:
+
+  foundation-refresh-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi
+        uses: pulumi/actions@v5
+
+      - name: gcloud authentication
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: NPM install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ./dev
+          npm install
