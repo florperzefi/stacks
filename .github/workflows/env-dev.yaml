@@ -23,6 +23,9 @@ jobs:
         run: |
           echo "sa=${GCP_SERVICE_ACCOUNT_DEV}" >> "$GITHUB_OUTPUT"
           echo "provider=${GCP_WORKLOAD_IDENTITY_PROVIDER_DEV}" >> "$GITHUB_OUTPUT"
+          env:
+          GCP_SERVICE_ACCOUNT_DEV: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER_DEV: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
 
       - name: Install Pulumi
         uses: pulumi/actions@v5
