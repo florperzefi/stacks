@@ -11,49 +11,48 @@ jobs:
   foundation-refresh-preview:
     name: FOUNDATION-Refresh-Preview
     runs-on: ubuntu-latest
+    environment: dev
     permissions:
       contents: read
       id-token: write
       packages: write
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      service_account: ${{ steps.set-vars.outputs.sa }}
+      provider: ${{ steps.set-vars.outputs.provider }}
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Set output values
+        id: set-vars
+        env: # ✅ Properly aligned with 'run' and 'id'
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        run: |
+          echo "sa=${GCP_SERVICE_ACCOUNT}" >> "$GITHUB_OUTPUT"
+          echo "provider=${GCP_WORKLOAD_IDENTITY_PROVIDER}" >> "$GITHUB_OUTPUT"
       - name: Install Pulumi CLI
         uses: pulumi/actions@v5
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Install gcloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
       - name: NPM install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: True
-
         run: |
           cd ./dev
           npm install
-        
-
-#      - name: Pulumi Preview (Save Plan)
-#        id: preview
-#        run: |
-#          pulumi login --non-interactive
-#          cd dev/foundation
-#          pulumi preview \
-#            --stack perzefi/foundation-dev \
-#            --save-plan ../../foundation-update.json \
-#            --non-interactive 2>&1 | tee ../../preview-output.txt
-        #  2>&1 | tee -> captures both stdout and stderr, shows in terminal and saves in file
 
       - name: Pulumi Refresh + Preview (Save Plan)
         id: preview
@@ -63,11 +62,6 @@ jobs:
           pulumi refresh --stack perzefi/foundation-dev --yes --non-interactive && \
           pulumi preview --stack perzefi/foundation-dev --save-plan ../../foundation-update.json \
           --non-interactive 2>&1 | tee ../../preview-output.txt
-
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: True
-
 
       - name: Check for Pulumi Changes
         id: check_changes
@@ -112,8 +106,15 @@ jobs:
       id-token: write
       packages: write
     environment:
-      name: dev
+      name: approval
       url: ${{ steps.deploy.outputs.url }}
+
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
+      GCP_SERVICE_ACCOUNT: ${{ needs.foundation-refresh-preview.outputs.service_account }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ needs.foundation-refresh-preview.outputs.provider }}
 
     steps:
       - name: Checkout Repository
@@ -125,8 +126,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Install gcloud SDK
         uses: google-github-actions/setup-gcloud@v1
@@ -152,9 +153,6 @@ jobs:
           pulumi stack select perzefi/foundation-dev
           pulumi up --plan ../../foundation-update.json --yes \
           --non-interactive > foundation-deploy.txt 2>&1
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
       - name: Upload Deploy Output to Artifact
         uses: actions/upload-artifact@v4
@@ -167,6 +165,7 @@ jobs:
   clients-refresh-preview:
     name: CLIENTS-Refresh-Preview
     runs-on: ubuntu-latest
+    environment: dev
     needs: [ foundation-refresh-preview, foundation-deploy ]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     permissions:
@@ -175,6 +174,10 @@ jobs:
       packages: write
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
     steps:
       - name: Checkout Repository
@@ -186,8 +189,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Install gcloud SDK
         uses: google-github-actions/setup-gcloud@v1
@@ -195,8 +198,6 @@ jobs:
           install_components: 'gke-gcloud-auth-plugin'
 
       - name: NPM install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ./dev
           npm install
@@ -210,9 +211,6 @@ jobs:
           pulumi refresh --stack perzefi/clients-dev --yes --non-interactive && \
           pulumi preview --stack perzefi/clients-dev --save-plan ../../clients-update.json \
           --non-interactive 2>&1 | tee ../../preview-output.txt
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: true
 
       - name: Check Pulumi Changes
         id: check_changes
@@ -258,8 +256,14 @@ jobs:
       id-token: write
       packages: write
     environment:
-      name: dev
+      name: approval
       url: ${{ steps.deploy.outputs.url }}
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
+      GCP_SERVICE_ACCOUNT: ${{ needs.foundation-refresh-preview.outputs.service_account }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ needs.foundation-refresh-preview.outputs.provider }}
 
     steps:
       - name: Checkout Repository
@@ -271,15 +275,13 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Install gcloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
       - name: NPM install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ./dev
           npm install
@@ -298,9 +300,6 @@ jobs:
           pulumi stack select perzefi/clients-dev
           pulumi up --plan ../../clients-update.json --yes \
           --non-interactive > clients-deploy.txt 2>&1
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
       - name: Upload Deploying Output to Artifact
         uses: actions/upload-artifact@v4
@@ -313,6 +312,7 @@ jobs:
   platform-refresh-preview:
     name: PLATFORM-Refresh-Preview
     runs-on: ubuntu-latest
+    environment: dev
     needs: [foundation-refresh-preview, foundation-deploy, clients-refresh-preview, clients-deploy, ]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     permissions:
@@ -321,6 +321,10 @@ jobs:
       packages: write
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
     steps:
       - name: Checkout Repository
@@ -332,8 +336,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_DEV }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Install gcloud SDK
         uses: google-github-actions/setup-gcloud@v1
@@ -341,8 +345,6 @@ jobs:
           install_components: 'gke-gcloud-auth-plugin'
 
       - name: NPM install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ./dev
           npm install
@@ -355,10 +357,6 @@ jobs:
           pulumi refresh --stack perzefi/platform-dev --yes --non-interactive && \
           pulumi preview --stack perzefi/platform-dev --save-plan ../../platform-update.json \
           --non-interactive 2>&1 | tee ../../preview-output.txt
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: True
-
 
       - name: Check Pulumi Changes
         id: check_changes
@@ -406,8 +404,14 @@ jobs:
       id-token: write
       packages: write
     environment:
-      name: dev
+      name: approval
       url: ${{ steps.deploy.outputs.url }}
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
+      GCP_SERVICE_ACCOUNT: ${{ needs.foundation-refresh-preview.outputs.service_account }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ needs.foundation-refresh-preview.outputs.provider }}
 
     steps:
       - name: Checkout Repository
@@ -426,8 +430,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: NPM install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ./dev
           npm install
@@ -446,9 +448,6 @@ jobs:
           pulumi stack select perzefi/platform-dev
           pulumi up --plan ../../platform-update.json --yes \
           --non-interactive > platform-deploy.txt 2>&1
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
       - name: Upload Deploy Output to Artifact
         uses: actions/upload-artifact@v4
