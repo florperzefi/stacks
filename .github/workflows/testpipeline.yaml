@@ -101,7 +101,7 @@ jobs:
     name: FOUNDATION-Deploy
     runs-on: ubuntu-latest
     needs: foundation-refresh-preview
-#    if: needs.foundation-refresh-preview.outputs.has_changes == 'true'
+    if: needs.foundation-refresh-preview.outputs.has_changes == 'true'
     permissions:
       contents: read
       id-token: write
@@ -523,8 +523,8 @@ jobs:
         run: |
           pulumi login --non-interactive
           cd dev/platform
-          pulumi refresh --stack perzefi/registry-dev --yes --non-interactive && \
-          pulumi preview --stack perzefi/registry-dev --save-plan ../../registry-update.json \
+          pulumi refresh --stack perzefi/registry-stack --yes --non-interactive && \
+          pulumi preview --stack perzefi/registry-stack --save-plan ../../registry-update.json \
           --non-interactive 2>&1 | tee ../../preview-output.txt
 
       - name: Check Pulumi Changes
@@ -615,7 +615,7 @@ jobs:
         run: |
           pulumi login --non-interactive
           cd dev/registry
-          pulumi stack select perzefi/registry-dev
+          pulumi stack select perzefi/registry-stack
           pulumi up --plan ../../registry-update.json --yes \
           --non-interactive 2>&1 | tee ../../registry-deploy.txt
 
