@@ -152,7 +152,7 @@ jobs:
           cd dev/foundation
           pulumi stack select perzefi/foundation-dev
           pulumi up --plan ../../foundation-update.json --yes \
-          --non-interactive > foundation-deploy.txt 2>&1
+          --non-interactive 2>&1 | tee ../../foundation-deploy.txt
 
       - name: Upload Deploy Output to Artifact
         uses: actions/upload-artifact@v4
@@ -299,7 +299,7 @@ jobs:
           cd dev/clients
           pulumi stack select perzefi/clients-dev
           pulumi up --plan ../../clients-update.json --yes \
-          --non-interactive > clients-deploy.txt 2>&1
+          --non-interactive 2>&1 | tee ../../clients-deploy.txt
 
       - name: Upload Deploying Output to Artifact
         uses: actions/upload-artifact@v4
@@ -447,7 +447,7 @@ jobs:
           cd dev/platform
           pulumi stack select perzefi/platform-dev
           pulumi up --plan ../../platform-update.json --yes \
-          --non-interactive > platform-deploy.txt 2>&1
+          --non-interactive 2>&1 | tee ../../platform-deploy.txt
 
       - name: Upload Deploy Output to Artifact
         uses: actions/upload-artifact@v4
