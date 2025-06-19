@@ -25,6 +25,8 @@ jobs:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
+      GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
 
     steps:
       - name: Checkout Repository
@@ -32,12 +34,10 @@ jobs:
 
       - name: Set output values
         id: set-vars
-        env: # ✅ Properly aligned with 'run' and 'id'
-          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
-          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
         run: |
           echo "sa=${GCP_SERVICE_ACCOUNT}" >> "$GITHUB_OUTPUT"
           echo "provider=${GCP_WORKLOAD_IDENTITY_PROVIDER}" >> "$GITHUB_OUTPUT"
+
       - name: Install Pulumi CLI
         uses: pulumi/actions@v5
 
@@ -135,8 +135,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: NPM install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ./dev
           npm install
@@ -472,7 +470,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-# This are outputs of env varibales from PRO envoriment which we are exporiting for rigistry-job
+# This are outputs of env varibales from PROD envoriment which we are exportin for rigistry-job
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
       service_account: ${{ steps.set-vars.outputs.prod_sa }}
@@ -483,6 +481,9 @@ jobs:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
+      GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL }}
 
     steps:
       - name: Checkout Repository
@@ -490,10 +491,6 @@ jobs:
 
       - name: Set Environment Output values
         id: set-vars
-        env:
-          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
-          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL }}
         run: |
           echo "prod_sa=${GCP_SERVICE_ACCOUNT}" >> "$GITHUB_OUTPUT"
           echo "prod_provider=${GCP_WORKLOAD_IDENTITY_PROVIDER}" >> "$GITHUB_OUTPUT"
@@ -522,7 +519,7 @@ jobs:
         id: preview
         run: |
           pulumi login --non-interactive
-          cd dev/platform
+          cd dev/registry
           pulumi refresh --stack perzefi/registry-stack --yes --non-interactive && \
           pulumi preview --stack perzefi/registry-stack --save-plan ../../registry-update.json \
           --non-interactive 2>&1 | tee ../../preview-output.txt
@@ -604,7 +601,7 @@ jobs:
           cd ./dev
           npm install
 
-      - name: Download PLATFORM Preview State
+      - name: Download Registry Preview State
         uses: actions/download-artifact@v4
         with:
           name: platform-preview-output
