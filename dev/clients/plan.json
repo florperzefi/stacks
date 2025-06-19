@@ -1,0 +1,156 @@
+{
+    "manifest": {
+        "time": "2025-06-16T14:54:22.3076473+02:00",
+        "magic": "f5af9aea0eb5ca1b68221c59920e8a630d5acc8aa6e4e0b98c4cd6eb8cdc40e8",
+        "version": "v3.170.0"
+    },
+    "config": {
+        "gcp:project": "quick-processor-459109-n6",
+        "gcp:region": "us-central1",
+        "gcp:zone": "us-central1-a",
+        "gcpp:clusterName": "dev-cluster",
+        "gcpp:environment": "dev",
+        "gcpp:k8sVersion": "latest",
+        "gcpp:metrics": [
+            {
+                "description": "Count of error logs",
+                "filter": "severity\u003e=ERROR",
+                "labelExtractors": {
+                    "severity": "EXTRACT(severity)"
+                },
+                "metricDescriptor": {
+                    "metricKind": "DELTA",
+                    "unit": "1",
+                    "valueType": "INT64"
+                },
+                "name": "error-count"
+            }
+        ],
+        "gcpp:nodeCount": 1,
+        "gcpp:nodeSize": "e2-standard-4",
+        "pulumi:tags": {
+            "pulumi:template": "gcp-typescript"
+        }
+    },
+    "resourcePlans": {
+        "urn:pulumi:clients-dev::gcpp::gcp:storage/bucket:Bucket::test-bucket": {
+            "goal": {
+                "type": "gcp:storage/bucket:Bucket",
+                "name": "test-bucket",
+                "custom": true,
+                "inputDiff": {
+                    "adds": {
+                        "__defaults": [
+                            "forceDestroy",
+                            "name",
+                            "storageClass"
+                        ],
+                        "forceDestroy": false,
+                        "location": "US",
+                        "name": "test-bucket-9464aa5",
+                        "storageClass": "STANDARD"
+                    }
+                },
+                "outputDiff": {},
+                "parent": "urn:pulumi:clients-dev::gcpp::pulumi:pulumi:Stack::gcpp-clients-dev",
+                "protect": false,
+                "provider": "urn:pulumi:clients-dev::gcpp::pulumi:providers:gcp::default_8_13_1::04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "propertyDependencies": {
+                    "location": []
+                },
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "customTimeouts": {}
+            },
+            "steps": [
+                "create"
+            ],
+            "state": {
+                "__meta": "{\"_new_extra_shim\":{\"location\":\"US\"},\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"read\":240000000000,\"update\":240000000000}}",
+                "autoclass": null,
+                "cors": [],
+                "customPlacementConfig": null,
+                "defaultEventBasedHold": null,
+                "effectiveLabels": {
+                    "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                    "ciphertext": "AAABAAgMy+pItNIYp7ULfRgTrxruRv2BijWHcPtxuHi/8HVWayEdwZqariAd3ie/CigDB9O9BNmgSh2dqzbSjOVb"
+                },
+                "enableObjectRetention": null,
+                "encryption": null,
+                "forceDestroy": false,
+                "hierarchicalNamespace": null,
+                "id": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "labels": null,
+                "lifecycleRules": [],
+                "location": "US",
+                "logging": null,
+                "name": "test-bucket-9464aa5",
+                "project": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "projectNumber": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "publicAccessPrevention": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "pulumiLabels": {
+                    "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                    "ciphertext": "AAABAOlCGZyBXT/iYz3CjMPoN71QUBbjvjBX+1s9pSKalGGVgGem+B+MOdxU4gj9m2BrSOs0LF/BmJ5e2FE4AgpN"
+                },
+                "requesterPays": null,
+                "retentionPolicy": null,
+                "rpo": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "selfLink": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "softDeletePolicy": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "storageClass": "STANDARD",
+                "uniformBucketLevelAccess": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "url": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "versioning": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+                "website": "04da6b54-80e4-46f7-96ec-b56ff0331ba9"
+            },
+            "seed": "9aS7nueSXGDdd5XYAviHPApwDtdjtAbkIodXtvSIZhI="
+        },
+        "urn:pulumi:clients-dev::gcpp::pulumi:providers:gcp::default_8_13_1": {
+            "goal": {
+                "type": "pulumi:providers:gcp",
+                "name": "default_8_13_1",
+                "custom": true,
+                "inputDiff": {
+                    "adds": {
+                        "__internal": {},
+                        "project": "quick-processor-459109-n6",
+                        "region": "us-central1",
+                        "version": "8.13.1",
+                        "zone": "us-central1-a"
+                    }
+                },
+                "outputDiff": {},
+                "protect": false,
+                "customTimeouts": {}
+            },
+            "steps": [
+                "create"
+            ],
+            "state": {
+                "project": "quick-processor-459109-n6",
+                "region": "us-central1",
+                "version": "8.13.1",
+                "zone": "us-central1-a"
+            },
+            "seed": "S7fOmycCJLppgIXoTRACvjMlcEaOgztgU5Bcatn2m8M="
+        },
+        "urn:pulumi:clients-dev::gcpp::pulumi:pulumi:Stack::gcpp-clients-dev": {
+            "goal": {
+                "type": "pulumi:pulumi:Stack",
+                "name": "gcpp-clients-dev",
+                "custom": false,
+                "inputDiff": {},
+                "outputDiff": {},
+                "protect": false,
+                "customTimeouts": {}
+            },
+            "steps": [
+                "same"
+            ],
+            "state": {},
+            "seed": "KECMXN6RrUmDdzCtLafyDz4/50gIGK1VEOgDl6XsPiY="
+        }
+    }
+}

@@ -21,6 +21,7 @@ jobs:
       service_account: ${{ steps.set-vars.outputs.sa }}
       provider: ${{ steps.set-vars.outputs.provider }}
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
@@ -110,6 +111,7 @@ jobs:
       url: ${{ steps.deploy.outputs.url }}
 
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
@@ -175,6 +177,7 @@ jobs:
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
@@ -259,6 +262,7 @@ jobs:
       name: approval
       url: ${{ steps.deploy.outputs.url }}
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
@@ -305,7 +309,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: clients-deploy-output
-          path: dev/clients/clients-deploy.txt
+          path: clients-deploy.txt
           retention-days: 30
 
 
@@ -322,6 +326,7 @@ jobs:
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
@@ -407,6 +412,7 @@ jobs:
       name: approval
       url: ${{ steps.deploy.outputs.url }}
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       USE_GKE_GCLOUD_AUTH_PLUGIN: True
@@ -453,5 +459,169 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: platform-deploy-output
-          path: dev/platform/platform-deploy.txt
+          path: platform-deploy.txt
+          retention-days: 30
+
+  registry-refresh-preview:
+    name: REGISTRY-Refresh-Preview
+    runs-on: ubuntu-latest
+    environment: dev #change from dev to prod
+    needs: [foundation-refresh-preview, foundation-deploy, clients-refresh-preview, clients-deploy, platform-refresh-preview, platform-deploy ]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure')
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+# This are outputs of env varibales from PRO envoriment which we are exporiting for rigistry-job
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      service_account: ${{ steps.set-vars.outputs.prod_sa }}
+      provider: ${{ steps.set-vars.outputs.prod_provider }}
+      pulumi_backend: ${{ steps.set-vars.outputs.prod_pulumi_backend }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Environment Output values
+        id: set-vars
+        env:
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL }}
+        run: |
+          echo "prod_sa=${GCP_SERVICE_ACCOUNT}" >> "$GITHUB_OUTPUT"
+          echo "prod_provider=${GCP_WORKLOAD_IDENTITY_PROVIDER}" >> "$GITHUB_OUTPUT"
+          echo "prod_pulumi_backend=${PULUMI_BACKEND_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: NPM install dependencies
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Pulumi Refresh + Preview (Save Plan)
+        id: preview
+        run: |
+          pulumi login --non-interactive
+          cd dev/platform
+          pulumi refresh --stack perzefi/registry-dev --yes --non-interactive && \
+          pulumi preview --stack perzefi/registry-dev --save-plan ../../registry-update.json \
+          --non-interactive 2>&1 | tee ../../preview-output.txt
+
+      - name: Check Pulumi Changes
+        id: check_changes
+        run: |
+          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
+
+          if [ -n "$CHANGES" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+            # Use multiline syntax for changes_summary to handle newlines properly
+            echo "changes_summary<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$CHANGES" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+
+            # For the notice, replace newlines with spaces to avoid formatting issues
+            CHANGES_SINGLE_LINE=$(echo "$CHANGES" | tr '\n' ' ')
+            echo "::notice title=Pulumi Change Detected in REGISTRY Stack::$CHANGES_SINGLE_LINE"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "changes_summary=No changes detected" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No Pulumi Changes in REGISTRY Stack::No changes detected"
+          fi
+
+      - name: Upload Pulumi Preview output to Artifact
+#        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: registry-preview-output
+          path: |
+            registry-update.json
+            preview-output.txt
+          retention-days: 30
+
+
+  registry-deploy:
+    name: REGISTRY-Deploy
+    runs-on: ubuntu-latest
+    needs: [foundation-refresh-preview, foundation-deploy, clients-refresh-preview, clients-deploy, platform-refresh-preview, registry-refresh-preview]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure') && needs.registry-refresh-preview.outputs.has_changes == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    environment:
+      name: approval
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      USE_GKE_GCLOUD_AUTH_PLUGIN: True
+      GCP_SERVICE_ACCOUNT: ${{ needs.registry-refresh-preview.outputs.service_account}}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ needs.registry-refresh-preview.outputs.provider }}
+      PULUMI_BACKEND_URL: ${{ needs.registry-refresh-preview.outputs.pulumi_backend }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: NPM install dependencies
+        run: |
+          cd ./dev
+          npm install
+
+      - name: Download PLATFORM Preview State
+        uses: actions/download-artifact@v4
+        with:
+          name: platform-preview-output
+          path: .
+
+      - name: Pulumi Up
+        id: deploy
+        run: |
+          pulumi login --non-interactive
+          cd dev/registry
+          pulumi stack select perzefi/registry-dev
+          pulumi up --plan ../../registry-update.json --yes \
+          --non-interactive 2>&1 | tee ../../registry-deploy.txt
+
+      - name: Upload Deploy Output to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: registry-deploy-output
+          path: registry-deploy.txt
           retention-days: 30
