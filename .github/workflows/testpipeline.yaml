@@ -463,7 +463,7 @@ jobs:
   registry-refresh-preview:
     name: REGISTRY-Refresh-Preview
     runs-on: ubuntu-latest
-    environment: dev #change from dev to prod
+    environment: prod #change from dev to prod
     needs: [foundation-refresh-preview, foundation-deploy, clients-refresh-preview, clients-deploy, platform-refresh-preview, platform-deploy ]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     permissions:
@@ -514,47 +514,47 @@ jobs:
         run: |
           cd ./dev
           npm install
-
-      - name: Pulumi Refresh + Preview (Save Plan)
-        id: preview
-        run: |
-          pulumi login --non-interactive
-          cd dev/registry
-          pulumi refresh --stack perzefi/registry-stack --yes --non-interactive && \
-          pulumi preview --stack perzefi/registry-stack --save-plan ../../registry-update.json \
-          --non-interactive 2>&1 | tee ../../preview-output.txt
-
-      - name: Check Pulumi Changes
-        id: check_changes
-        run: |
-          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
-
-          if [ -n "$CHANGES" ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-
-            # Use multiline syntax for changes_summary to handle newlines properly
-            echo "changes_summary<<EOF" >> "$GITHUB_OUTPUT"
-            echo "$CHANGES" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
-
-            # For the notice, replace newlines with spaces to avoid formatting issues
-            CHANGES_SINGLE_LINE=$(echo "$CHANGES" | tr '\n' ' ')
-            echo "::notice title=Pulumi Change Detected in REGISTRY Stack::$CHANGES_SINGLE_LINE"
-          else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "changes_summary=No changes detected" >> "$GITHUB_OUTPUT"
-            echo "::notice title=No Pulumi Changes in REGISTRY Stack::No changes detected"
-          fi
-
-      - name: Upload Pulumi Preview output to Artifact
-#        if: steps.check_changes.outputs.has_changes == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: registry-preview-output
-          path: |
-            registry-update.json
-            preview-output.txt
-          retention-days: 30
+#
+#      - name: Pulumi Refresh + Preview (Save Plan)
+#        id: preview
+#        run: |
+#          pulumi login --non-interactive
+#          cd dev/registry
+#          pulumi refresh --stack perzefi/registry-stack --yes --non-interactive && \
+#          pulumi preview --stack perzefi/registry-stack --save-plan ../../registry-update.json \
+#          --non-interactive 2>&1 | tee ../../preview-output.txt
+#
+#      - name: Check Pulumi Changes
+#        id: check_changes
+#        run: |
+#          CHANGES=$(grep -E "to create|to delete|to update|to replace" preview-output.txt || true)
+#
+#          if [ -n "$CHANGES" ]; then
+#            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+#
+#            # Use multiline syntax for changes_summary to handle newlines properly
+#            echo "changes_summary<<EOF" >> "$GITHUB_OUTPUT"
+#            echo "$CHANGES" >> "$GITHUB_OUTPUT"
+#            echo "EOF" >> "$GITHUB_OUTPUT"
+#
+#            # For the notice, replace newlines with spaces to avoid formatting issues
+#            CHANGES_SINGLE_LINE=$(echo "$CHANGES" | tr '\n' ' ')
+#            echo "::notice title=Pulumi Change Detected in REGISTRY Stack::$CHANGES_SINGLE_LINE"
+#          else
+#            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+#            echo "changes_summary=No changes detected" >> "$GITHUB_OUTPUT"
+#            echo "::notice title=No Pulumi Changes in REGISTRY Stack::No changes detected"
+#          fi
+#
+#      - name: Upload Pulumi Preview output to Artifact
+##        if: steps.check_changes.outputs.has_changes == 'true'
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: registry-preview-output
+#          path: |
+#            registry-update.json
+#            preview-output.txt
+#          retention-days: 30
 
 
   registry-deploy:
@@ -600,25 +600,25 @@ jobs:
         run: |
           cd ./dev
           npm install
-
-      - name: Download Registry Preview State
-        uses: actions/download-artifact@v4
-        with:
-          name: registry-preview-output
-          path: .
-
-      - name: Pulumi Up
-        id: deploy
-        run: |
-          pulumi login --non-interactive
-          cd dev/registry
-          pulumi stack select perzefi/registry-stack
-          pulumi up --plan ../../registry-update.json --yes \
-          --non-interactive 2>&1 | tee ../../registry-deploy.txt
-
-      - name: Upload Deploy Output to Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: registry-deploy-output
-          path: registry-deploy.txt
-          retention-days: 30
+#
+#      - name: Download Registry Preview State
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: registry-preview-output
+#          path: .
+#
+#      - name: Pulumi Up
+#        id: deploy
+#        run: |
+#          pulumi login --non-interactive
+#          cd dev/registry
+#          pulumi stack select perzefi/registry-stack
+#          pulumi up --plan ../../registry-update.json --yes \
+#          --non-interactive 2>&1 | tee ../../registry-deploy.txt
+#
+#      - name: Upload Deploy Output to Artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: registry-deploy-output
+#          path: registry-deploy.txt
+#          retention-days: 30
