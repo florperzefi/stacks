@@ -158,7 +158,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: foundation-deploy-output
-          path: dev/foundation/foundation-deploy.txt
+          path: platform-deploy.txt
           retention-days: 30
 
 
